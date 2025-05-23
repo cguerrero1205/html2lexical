@@ -1,6 +1,6 @@
 // app/api/html2lexical/route.ts
 import { NextResponse } from "next/server";
-import { createEditor, $getRoot } from "lexical";
+import { createEditor, $getRoot, $createParagraphNode } from "lexical";
 import { $generateNodesFromDOM } from "@lexical/html";
 import { JSDOM } from "jsdom";
 import { ParagraphNode, TextNode } from "lexical";
@@ -9,7 +9,7 @@ import { ListNode, ListItemNode } from "@lexical/list";
 import { CodeNode } from "@lexical/code";
 import { LinkNode } from "@lexical/link";
 import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
-
+import { ImageNode } from "../../nodes/ImageNode";
 
 function convertHtmlToLexicalJSON(html: string) {
   const editor = createEditor({
@@ -26,6 +26,7 @@ function convertHtmlToLexicalJSON(html: string) {
       TableNode,
       TableCellNode,
       TableRowNode,
+      ImageNode,
     ],
   });
 
@@ -34,9 +35,30 @@ function convertHtmlToLexicalJSON(html: string) {
       const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, "");
       const dom = new JSDOM(cleanHtml);
       const document = dom.window.document;
+      // Reemplazar <img> por un nodo de imagen Lexical directamente en el DOM
+      document.querySelectorAll("img").forEach((img) => {
+        const src = img.getAttribute("src") || "";
+        const alt = img.getAttribute("alt") || undefined;
+        const width = img.getAttribute("width")
+          ? Number(img.getAttribute("width"))
+          : undefined;
+        const height = img.getAttribute("height")
+          ? Number(img.getAttribute("height"))
+          : undefined;
+        // Crear el nodo de imagen Lexical
+        const imageNode = new ImageNode(src, alt, width, height);
+        // Crear un párrafo y agregar el nodo de imagen como hijo
+        const p = $createParagraphNode();
+        p.append(imageNode);
+        // Reemplazar el <img> en el DOM por un comentario para que $generateNodesFromDOM lo ignore
+        img.replaceWith(document.createComment("lexical-image-node"));
+        // Agregar el párrafo con la imagen al root
+        p.setFormat("center");
+        $getRoot().append(p);
+      });
+      // Procesar el resto del DOM normalmente
       const nodes = $generateNodesFromDOM(editor, document);
       const root = $getRoot();
-      root.clear();
       root.append(...nodes);
     },
     { discrete: true }
