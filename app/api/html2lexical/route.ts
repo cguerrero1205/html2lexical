@@ -16,8 +16,8 @@ function convertHtmlToLexicalJSON(html: string) {
     () => {
       const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, "");
       const dom = new JSDOM(cleanHtml);
-      const body = dom.window.document.body;
-      const nodes = $generateNodesFromDOM(editor, body);
+      const document = dom.window.document;
+      const nodes = $generateNodesFromDOM(editor, document);
       const root = $getRoot();
       root.clear();
       root.append(...nodes);
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     }
 
     const lexicalJson = convertHtmlToLexicalJSON(html);
-    return NextResponse.json({ lexical: lexicalJson });
+    return NextResponse.json({ editorState: lexicalJson });
   } catch (error) {
     console.error("Error al convertir HTML a Lexical JSON:", error);
     return NextResponse.json(
