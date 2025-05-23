@@ -5,11 +5,28 @@ import { $generateNodesFromDOM } from "@lexical/html";
 import { JSDOM } from "jsdom";
 import { ParagraphNode, TextNode } from "lexical";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
+import { ListNode, ListItemNode } from "@lexical/list";
+import { CodeNode } from "@lexical/code";
+import { LinkNode } from "@lexical/link";
+import { TableNode, TableCellNode, TableRowNode } from "@lexical/table";
+
 
 function convertHtmlToLexicalJSON(html: string) {
   const editor = createEditor({
     namespace: "my-editor",
-    nodes: [ParagraphNode, TextNode, HeadingNode, QuoteNode],
+    nodes: [
+      ParagraphNode,
+      TextNode,
+      HeadingNode,
+      QuoteNode,
+      ListNode,
+      ListItemNode,
+      CodeNode,
+      LinkNode,
+      TableNode,
+      TableCellNode,
+      TableRowNode,
+    ],
   });
 
   editor.update(
