@@ -35,8 +35,17 @@ function convertHtmlToLexicalJSON(html: string) {
       const cleanHtml = html.replace(/<!--[\s\S]*?-->/g, "");
       const dom = new JSDOM(cleanHtml);
       const document = dom.window.document;
-      // Reemplazar <img> por un nodo de imagen Lexical directamente en el DOM
-      document.querySelectorAll("img").forEach((img) => {
+
+      // Array para almacenar las imágenes y sus posiciones
+      const imageReplacements: Array<{
+        placeholder: string;
+        node: ImageNode;
+      }> = [];
+
+      // Procesar imágenes manteniendo su posición
+      document.querySelectorAll("figure img, img, p.ql-align-justify img, p img").forEach((img) => {
+        if (!img) return;
+
         const src = img.getAttribute("src") || "";
         const alt = img.getAttribute("alt") || undefined;
         const width = img.getAttribute("width")
@@ -45,21 +54,107 @@ function convertHtmlToLexicalJSON(html: string) {
         const height = img.getAttribute("height")
           ? Number(img.getAttribute("height"))
           : undefined;
-        // Crear el nodo de imagen Lexical
-        const imageNode = new ImageNode(src, alt, width, height);
-        // Crear un párrafo y agregar el nodo de imagen como hijo
-        const p = $createParagraphNode();
-        p.append(imageNode);
-        // Reemplazar el <img> en el DOM por un comentario para que $generateNodesFromDOM lo ignore
-        img.replaceWith(document.createComment("lexical-image-node"));
-        // Agregar el párrafo con la imagen al root
-        p.setFormat("center");
-        $getRoot().append(p);
+
+        // Determinar el elemento contenedor (figure o párrafo)
+        const container = img.closest("figure") || img.closest("p") || img;
+        
+        // Procesar caption si existe
+        const figcaption = container.querySelector("figcaption");
+        const showCaption = !!figcaption;
+        const caption = showCaption ? {
+          editorState: {
+            root: {
+              children: [
+                {
+                  children: [
+                    {
+                      detail: 0,
+                      format: 0,
+                      mode: "normal",
+                      style: "",
+                      text: figcaption.textContent || "",
+                      type: "text",
+                      version: 1
+                    }
+                  ],
+                  direction: "ltr",
+                  format: "",
+                  indent: 0,
+                  type: "paragraph",
+                  version: 1,
+                  textFormat: 0,
+                  textStyle: ""
+                }
+              ],
+              direction: "ltr",
+              format: "",
+              indent: 0,
+              type: "root",
+              version: 1
+            }
+          }
+        } : undefined;
+
+        // Crear un marcador de posición único
+        const placeholder = `<!--IMG-${Math.random().toString(36).substring(2)}-->`;
+        
+        // Almacenar la información de la imagen
+        imageReplacements.push({
+          placeholder,
+          node: new ImageNode(
+            src,
+            alt,
+            width,
+            height,
+            undefined,
+            300,
+            showCaption,
+            caption
+          )
+        });
+
+        // Reemplazar el elemento contenedor con el marcador
+        container.replaceWith(document.createTextNode(placeholder));
       });
-      // Procesar el resto del DOM normalmente
+
+      // Generar nodos del DOM
       const nodes = $generateNodesFromDOM(editor, document);
       const root = $getRoot();
-      root.append(...nodes);
+      root.clear();
+
+      // Procesar los nodos y reemplazar los marcadores con nodos de imagen
+      function processNodes(nodes: Array<any>) {
+        const processedNodes = [];
+        
+        for (const node of nodes) {
+          if (node.getType() === 'text') {
+            const textContent = node.getTextContent();
+            let currentText = textContent;
+            let currentPosition = 0;
+            
+            // Buscar todos los marcadores en el texto
+            for (const {placeholder, node: imageNode} of imageReplacements) {
+              const index = currentText.indexOf(placeholder, currentPosition);
+              if (index !== -1) {
+                // Crear nodo de párrafo para la imagen
+                const imageParagraph = $createParagraphNode();
+                imageParagraph.append(imageNode);
+                imageParagraph.setFormat("center");
+                processedNodes.push(imageParagraph);
+                currentPosition = index + placeholder.length;
+              }
+            }
+          } else {
+            processedNodes.push(node);
+          }
+        }
+        
+        return processedNodes;
+      }
+
+      // Aplicar los nodos procesados
+      const processedNodes = processNodes(nodes);
+      root.append(...processedNodes);
     },
     { discrete: true }
   );
